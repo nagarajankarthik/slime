@@ -43,8 +43,10 @@ fi
 echo "HAS_NVLINK: $HAS_NVLINK (detected $NVLINK_COUNT NVLink references)"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
-SCRIPT_DIR="${BASE_FOLDER}/slime"
+SCRIPT_DIR="${BASE_FOLDER}/slime/scripts"
 source "${SCRIPT_DIR}/models/qwen3.5-122B-A10B.sh"
+
+cd ${BASE_FOLDER}/slime
 
 CKPT_ARGS=(
    --hf-checkpoint /mnt/weka/all/.cache/huggingface/hub/models--Qwen--Qwen3.5-122B-A10B/snapshots/dc4d348443bc740c68e2d77492492c11606384d5
@@ -70,7 +72,7 @@ SFT_ARGS=(
 )
 
 PERF_ARGS=(
-   --tensor-model-parallel-size 2
+   --tensor-model-parallel-size 1
    --sequence-parallel
    --pipeline-model-parallel-size 1
    --context-parallel-size 1
@@ -160,8 +162,8 @@ if [[ ${CURRENT_HOST} == ${MASTER_ADDR} ]]; then
     ray job submit --address="http://127.0.0.1:8265" \
        --runtime-env-json="${RUNTIME_ENV_JSON}" \
        -- python3 train_async.py \
-       --actor-num-nodes 1 \
-       --actor-num-gpus-per-node 8 \
+       --actor-num-nodes ${NUM_NODES} \
+       --actor-num-gpus-per-node ${GPUS_PER_NODE} \
        ${MODEL_ARGS[@]} \
        ${CKPT_ARGS[@]} \
        ${SFT_ARGS[@]} \
