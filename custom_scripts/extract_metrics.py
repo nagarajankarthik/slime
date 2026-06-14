@@ -5,6 +5,7 @@ import re
 import ast
 import csv
 from pathlib import Path
+import pandas as pd
 
 def extract_metrics(log_file_path, output_csv_path):
     log_path = Path(log_file_path)
@@ -45,9 +46,6 @@ def extract_metrics(log_file_path, output_csv_path):
         print("No matching performance metrics found in the log file.")
         return
 
-    print(f"NK_DEBUG")
-    print(f"all_data[0]: {all_data[0]}")
-
     # Sort data by step number to ensure chronologically ordered rows
     all_data.sort(key=lambda x: x["step"])
 
@@ -63,6 +61,15 @@ def extract_metrics(log_file_path, output_csv_path):
 
     print(f"Successfully processed {len(all_data)} steps.")
 
+def compile_final_metrics(metrics_path, metrics_items: list[str]):
+    df = pd.read_csv(metrics_path)
+    df_subset = df.loc[:, metrics_items]
+    median_values = df_subset.median(axis=0)
+    df_filtered = df_subset.loc[df_subset["actor_train_time"] < 2.0 * median_values["actor_train_time"], :]
+    print(df_filtered.mean())
+
+
+
 if __name__ == "__main__":
     # Allow running from command line or falling back to default names
     base_path = "/mnt/lustre/gcp640426-lustre1/aisg/users/karthik/model_training_team/slime_test/logs"
@@ -74,4 +81,6 @@ if __name__ == "__main__":
         print("Usage: python3 extract_metrics.py <path_to_log_file> [output_csv_file]")
         sys.exit(1)
         
-    extract_metrics(file_in, file_out)
+    if not Path(file_out).exists():
+        extract_metrics(file_in, file_out)
+    compile_final_metrics(file_out, ["actor_train_tflops", "actor_train_time", "actor_train_tok_per_s"])
