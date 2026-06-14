@@ -46,10 +46,10 @@ echo "Creating enroot container ${CONTAINER_NAME} from ${SQSH_FILE}"
 mpirun -np $NUM_NODES --host $host_list bash ${CREATE_ENROOT_SCRIPT} "${SQSH_FILE}" "${CONTAINER_NAME}"
 
 mpirun -np ${NUM_NODES} \
-    -x JOB_ID -x JOB_WORK_DIR -x LOG_DIR -x BASE_FOLDER \
+    -x JOB_ID -x JOB_WORK_DIR -x LOG_DIR -x BASE_FOLDER -x WANDB_API_KEY \
     --host $host_list \
 enroot start --rw \
-    -e JOB_ID -e JOB_WORK_DIR -e LOG_DIR -e BASE_FOLDER \
+    -e JOB_ID -e JOB_WORK_DIR -e LOG_DIR -e BASE_FOLDER -e WANDB_API_KEY \
     -e OMPI_COMM_WORLD_RANK \
     --mount ${MOUNT_DIR} \
     ${CONTAINER_NAME} \
