@@ -1,10 +1,10 @@
 #!/bin/bash
 #SBATCH --job-name=qwen3.5-122B-A10B-sft
-#SBATCH --nodes=2
+#SBATCH --nodes=4
 #SBATCH --gres=gpu:8
 #SBATCH --cpus-per-gpu=16
 #SBATCH --time=24:00:00
-#SBATCH --output=/mnt/weka/aisg/users/karthik/model_training_team/slime_test/slurm_logs/%j.out
+#SBATCH --output=/mnt/lustre/gcp640426-lustre1/aisg/users/karthik/model_training_team/slime_test/slurm_logs/%j.out
 
 
 if [ -n "${SLURM_JOB_NODELIST}" ]; then
@@ -26,15 +26,24 @@ host_list=$(IFS=,; echo "${host_array[*]}")
 export MASTER_ADDR=$(hostname)
 export GPUS_PER_NODE=$(nvidia-smi -L | wc -l)
 export WORLD_SIZE=$((GPUS_PER_NODE * NUM_NODES))
-export SQSH_FILE="/mnt/weka/aisg/sqsh/slime_10_june.sqsh"
 export CONTAINER_NAME="slime_test"
-export BASE_FOLDER="/mnt/weka/aisg/users/karthik/model_training_team/slime_test"
+
+# ---- Cluster specific section ----
+export BASE_FOLDER="/mnt/lustre/gcp640426-lustre1/aisg/users/karthik/model_training_team/slime_test"
+export MOUNT_DIR="/mnt/lustre/gcp640426-lustre1/aisg/users/karthik"
+module load openmpi/v4.1.x
+# ---- Cluster specific section end ----
+export SQSH_FILE="${BASE_FOLDER}/slime_latest.sqsh"
+export CREATE_ENROOT_SCRIPT="${BASE_FOLDER}/slime/custom_scripts/create_enroot.sh"
 export LOG_DIR="${BASE_FOLDER}/logs/${JOB_ID}"
 mkdir -p ${LOG_DIR}
 export BASH_SCRIPT="${BASE_FOLDER}/slime/custom_scripts/run-qwen3.5-122B-A10B-sft.sh"
+cp ${BASH_SCRIPT} ${LOG_DIR}
 export MASTER_PORT=$((10000 + $RANDOM % 9000))
-mpirun -np $NUM_NODES --host $host_list bash custom_scripts/create_enroot.sh "${SQSH_FILE}" "${CONTAINER_NAME}"
 
+
+echo "Creating enroot container ${CONTAINER_NAME} from ${SQSH_FILE}"
+mpirun -np $NUM_NODES --host $host_list bash ${CREATE_ENROOT_SCRIPT} "${SQSH_FILE}" "${CONTAINER_NAME}"
 
 mpirun -np ${NUM_NODES} \
     -x JOB_ID -x JOB_WORK_DIR -x LOG_DIR -x BASE_FOLDER \
@@ -42,7 +51,7 @@ mpirun -np ${NUM_NODES} \
 enroot start --rw \
     -e JOB_ID -e JOB_WORK_DIR -e LOG_DIR -e BASE_FOLDER \
     -e OMPI_COMM_WORLD_RANK \
-    --mount ${JOB_WORK_DIR} \
+    --mount ${MOUNT_DIR} \
     ${CONTAINER_NAME} \
     bash -c "bash ${BASH_SCRIPT} \
         ${GPUS_PER_NODE} \
