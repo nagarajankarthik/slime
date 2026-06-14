@@ -49,7 +49,7 @@ source "${SCRIPT_DIR}/models/qwen3.5-27B.sh"
 cd ${BASE_FOLDER}/slime
 
 CKPT_ARGS=(
-   --hf-checkpoint /mnt/lustre/gcp640426-lustre1/aisg/users/karthik/hf_cache/huggingface/hub/models--Qwen--Qwen3.5-27B/snapshots/dc4d348443bc740c68e2d77492492c11606384d5
+   --hf-checkpoint /mnt/lustre/gcp640426-lustre1/aisg/users/karthik/hf_cache/huggingface/hub/models--Qwen--Qwen3.5-27B/snapshots/fc05daec18b0a78c049392ed2e771dde82bdf654
    --load ${BASE_FOLDER}/megatron_ckpt/Qwen3.5-27B_slime/
    --save ${BASE_FOLDER}/megatron_ckpt/Qwen3.5-27B_slime/
    --save-interval 2000000
@@ -109,6 +109,7 @@ WANDB_ARGS=(
    --use-wandb
    --wandb-project slime-sft-qwen3.5
    --wandb-group qwen3.5-27B-sft
+   --wandb-key ${WANDB_API_KEY}
 )
 
 MISC_ARGS=(
