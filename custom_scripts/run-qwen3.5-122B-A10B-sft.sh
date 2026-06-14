@@ -49,10 +49,11 @@ source "${SCRIPT_DIR}/models/qwen3.5-122B-A10B.sh"
 cd ${BASE_FOLDER}/slime
 
 CKPT_ARGS=(
-   --hf-checkpoint /mnt/weka/all/.cache/huggingface/hub/models--Qwen--Qwen3.5-122B-A10B/snapshots/dc4d348443bc740c68e2d77492492c11606384d5
+   --hf-checkpoint /mnt/lustre/gcp640426-lustre1/aisg/users/karthik/hf_cache/huggingface/hub/models--Qwen--Qwen3.5-122B-A10B/snapshots/dc4d348443bc740c68e2d77492492c11606384d5
    --load ${BASE_FOLDER}/megatron_ckpt/Qwen3.5-122B-A10B_slime/
    --save ${BASE_FOLDER}/megatron_ckpt/Qwen3.5-122B-A10B_slime/
    --save-interval 2000000
+   --no-load-optim
 )
 
 SFT_ARGS=(
@@ -74,7 +75,7 @@ SFT_ARGS=(
 PERF_ARGS=(
    --tensor-model-parallel-size 1
    --sequence-parallel
-   --pipeline-model-parallel-size 1
+   --pipeline-model-parallel-size 4
    --context-parallel-size 1
    --expert-model-parallel-size 8
    --expert-tensor-parallel-size 1
