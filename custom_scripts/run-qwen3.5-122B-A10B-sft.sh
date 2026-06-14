@@ -106,9 +106,10 @@ OPTIMIZER_ARGS=(
 )
 
 WANDB_ARGS=(
-   # --use-wandb
-   # --wandb-project slime-dev
-   # --wandb-group qwen3.5-35B-sft
+   --use-wandb
+   --wandb-project slime-sft-qwen3.5
+   --wandb-group qwen3.5-122B-sft
+   --wandb-key ${WANDB_API_KEY}
 )
 
 MISC_ARGS=(
