@@ -50,7 +50,7 @@ MODEL_ARGS=(
    --moe-token-drop-policy probs
    --moe-router-dtype fp32
    --moe-permute-fusion
-   --moe-aux-loss-coeff 0
+   --moe-aux-loss-coeff 0.001
 
    # qwen3.5 specific
    --attention-output-gate
