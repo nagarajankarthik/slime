@@ -561,6 +561,12 @@ def get_slime_extra_args_provider(add_custom_arguments=None):
                 default=0,
                 help="Initial grace period (in seconds) before starting health checks. This allows time for model compilation and initialization. Increase this value significantly when using deepgemm.",
             )
+            parser.add_argument(
+                    "--constant-rollout-skip-batches",
+                    type=int,
+                    default=0,
+                    help="Number of batches to skip when constant rollout is used to keep training the same batch of data at every train step.",
+            )
             return parser
 
         # data
