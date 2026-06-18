@@ -62,8 +62,8 @@ SFT_ARGS=(
    --input-key messages
    --rollout-shuffle
    --num-epoch 3
-   --rollout-batch-size 128
-   --global-batch-size 128
+   --rollout-batch-size 512
+   --global-batch-size 512
 
    --loss-type sft_loss
    --loss-mask-type qwen3_5
@@ -86,7 +86,7 @@ PERF_ARGS=(
 
    # --micro-batch-size 1
    --use-dynamic-batch-size
-   --max-tokens-per-gpu 8192
+   --max-tokens-per-gpu 16384
 )
 
 OPTIMIZER_ARGS=(
@@ -108,8 +108,9 @@ OPTIMIZER_ARGS=(
 WANDB_ARGS=(
    --use-wandb
    --wandb-project slime-sft-qwen3.5
-   --wandb-group qwen3.5-122B-sft
+   --wandb-group pp4_ep8_nodes4_gbs_512_max_tokens_gpu_16384
    --wandb-key ${WANDB_API_KEY}
+   --disable-wandb-random-suffix
 )
 
 MISC_ARGS=(
