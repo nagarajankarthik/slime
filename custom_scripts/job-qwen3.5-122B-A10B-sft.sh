@@ -1,6 +1,6 @@
 #!/bin/bash
-#SBATCH --job-name=qwen3.5-122B-A10B-sft
-#SBATCH --nodes=4
+#SBATCH --job-name=qwen3.5-test
+#SBATCH --nodes=1
 #SBATCH --gres=gpu:8
 #SBATCH --cpus-per-gpu=16
 #SBATCH --time=24:00:00
@@ -38,6 +38,7 @@ export CREATE_ENROOT_SCRIPT="${BASE_FOLDER}/slime/custom_scripts/create_enroot.s
 export LOG_DIR="${BASE_FOLDER}/logs/${JOB_ID}"
 mkdir -p ${LOG_DIR}
 export BASH_SCRIPT="${BASE_FOLDER}/slime/custom_scripts/run-qwen3.5-122B-A10B-sft.sh"
+export BASH_SCRIPT="${BASE_FOLDER}/slime/custom_scripts/run-qwen3.5-4B-sft.sh"
 cp ${BASH_SCRIPT} ${LOG_DIR}
 export MASTER_PORT=$((10000 + $RANDOM % 9000))
 
