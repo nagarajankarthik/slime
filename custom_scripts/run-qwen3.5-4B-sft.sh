@@ -49,7 +49,7 @@ source "${SCRIPT_DIR}/models/qwen3.5-4B.sh"
 cd ${BASE_FOLDER}/slime
 
 CKPT_ARGS=(
-   --hf-checkpoint /mnt/lustre/gcp640426-lustre1/aisg/users/karthik/hf_cache/huggingface/hub/models--Qwen--Qwen3.5-4B/snapshots/851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a/
+   --hf-checkpoint ${HF_HOME}/hub/models--Qwen--Qwen3.5-4B/snapshots/851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a/
    --load ${BASE_FOLDER}/megatron_ckpt/Qwen3.5-4B_slime/
    --save ${BASE_FOLDER}/megatron_ckpt/Qwen3.5-4B_slime/
    --save-interval 2000000
