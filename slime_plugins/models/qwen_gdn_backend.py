@@ -28,7 +28,7 @@ def _validate_flashqla_runtime():
 def get_chunk_gated_delta_rule(backend: str):
     if backend == "fla":
         try:
-            from fla.ops.gated_delta_rule import chunk_gated_delta_rule
+            from fla.ops.gated_delta_rule.chunk import chunk_gated_delta_rule
         except ImportError as exc:
             raise ImportError("Qwen GDN backend 'fla' requires flash-linear-attention.") from exc
         return chunk_gated_delta_rule
