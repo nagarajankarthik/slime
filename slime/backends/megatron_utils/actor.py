@@ -99,6 +99,14 @@ class MegatronTrainRayActor(TrainRayActor):
             "microbatch_group_size_per_vp_stage": microbatch_group_size_per_vp_stage,
         }
 
+        if self.train_parallel_config["cp_size"] > 1:
+            from slime_plugins.models.cp_utils import detect_and_setup_hybrid_cp
+
+            for model_chunk in self.model:
+                detect_and_setup_hybrid_cp(
+                    model_chunk, mpu.get_context_parallel_group(), mpu.get_context_parallel_rank(), mpu.get_context_parallel_world_size()
+                )
+
         start_rollout_id = loaded_rollout_id + 1
 
         if role == "critic":
