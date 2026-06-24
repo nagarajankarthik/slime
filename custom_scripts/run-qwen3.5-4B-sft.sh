@@ -17,6 +17,7 @@ export WORLD_SIZE=${2:-1}
 export NUM_NODES=${3:-1}
 export MASTER_ADDR=${4:-"127.0.0.1"}
 export MASTER_PORT=${5:-"12355"}
+export TRITON_CACHE_DIR="/tmp/triton_cache"
 
 
 # if base folder not set raise error
@@ -62,8 +63,8 @@ SFT_ARGS=(
    --input-key messages
    --rollout-shuffle
    --num-epoch 3
-   --rollout-batch-size 2048
-   --global-batch-size 2048
+   --rollout-batch-size 4096
+   --global-batch-size 4096
 
    --loss-type sft_loss
    --loss-mask-type qwen3_5
@@ -73,7 +74,8 @@ SFT_ARGS=(
 )
 
 PERF_ARGS=(
-   --tensor-model-parallel-size 4
+   --data-parallel-sharding-strategy optim_grads_params
+   --tensor-model-parallel-size 1
    --sequence-parallel
    --pipeline-model-parallel-size 1
    --context-parallel-size 1
@@ -82,7 +84,7 @@ PERF_ARGS=(
 
    --recompute-granularity full
    --recompute-method uniform
-   --recompute-num-layers 32
+   --recompute-num-layers 1
 
    # --micro-batch-size 1
    --use-dynamic-batch-size
@@ -108,7 +110,7 @@ OPTIMIZER_ARGS=(
 WANDB_ARGS=(
    --use-wandb
    --wandb-project slime-sft-qwen3.5
-   --wandb-group 4B_TP4_recompute_uniform_32_max_tokens_gpu_65536
+   --wandb-group 4B_TP1_CP1_fla_max_tokens_gpu_65536
    --wandb-key ${WANDB_API_KEY}
    --disable-wandb-random-suffix
 )
