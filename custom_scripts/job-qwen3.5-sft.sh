@@ -4,7 +4,7 @@
 #SBATCH --gres=gpu:8
 #SBATCH --cpus-per-gpu=16
 #SBATCH --time=24:00:00
-#SBATCH --output=/mnt/lustre/gcp640426-lustre1/aisg/users/karthik/model_training_team/slime_test/slurm_logs/%j.out
+#SBATCH --output=/mnt/weka/aisg/users/karthik/model_training_team/slime_test/slurm_logs/%j.out
 
 
 if [ -n "${SLURM_JOB_NODELIST}" ]; then
@@ -27,13 +27,21 @@ export MASTER_ADDR=$(hostname)
 export GPUS_PER_NODE=$(nvidia-smi -L | wc -l)
 export WORLD_SIZE=$((GPUS_PER_NODE * NUM_NODES))
 export CONTAINER_NAME="slime_test"
+export CLUSTER_NAME="smc"
 
 # ---- Cluster specific section ----
-export BASE_FOLDER="/mnt/lustre/gcp640426-lustre1/aisg/users/karthik/model_training_team/slime_test"
-export MOUNT_DIR="/mnt/lustre/gcp640426-lustre1/aisg/users/karthik"
-module load openmpi/v4.1.x
+if [ ${CLUSTER_NAME} == "gcp" ]; then
+    export BASE_FOLDER="/mnt/lustre/gcp640426-lustre1/aisg/users/karthik/model_training_team/slime_test"
+    export MOUNT_DIR="/mnt/lustre/gcp640426-lustre1/aisg/users/karthik"
+    export SQSH_FILE="${BASE_FOLDER}/slime_latest.sqsh"
+    module load openmpi/v4.1.x
+elif [ ${CLUSTER_NAME} == "smc" ]; then
+    export BASE_FOLDER="/mnt/weka/aisg/users/karthik/model_training_team/slime_test"
+    export MOUNT_DIR="/mnt/weka/aisg"
+    export SQSH_FILE="${MOUNT_DIR}/sqsh/slime_10_june.sqsh"
+    export SQSH_FILE="${MOUNT_DIR}/sqsh/slime_flash_linear_attn_context_parallel.sqsh"
+fi
 # ---- Cluster specific section end ----
-export SQSH_FILE="${BASE_FOLDER}/slime_latest.sqsh"
 export CREATE_ENROOT_SCRIPT="${BASE_FOLDER}/slime/custom_scripts/create_enroot.sh"
 export LOG_DIR="${BASE_FOLDER}/logs/${JOB_ID}"
 mkdir -p ${LOG_DIR}
@@ -47,10 +55,10 @@ echo "Creating enroot container ${CONTAINER_NAME} from ${SQSH_FILE}"
 mpirun -np $NUM_NODES --host $host_list bash ${CREATE_ENROOT_SCRIPT} "${SQSH_FILE}" "${CONTAINER_NAME}"
 
 mpirun -np ${NUM_NODES} \
-    -x JOB_ID -x JOB_WORK_DIR -x LOG_DIR -x BASE_FOLDER -x WANDB_API_KEY \
+    -x JOB_ID -x JOB_WORK_DIR -x LOG_DIR -x BASE_FOLDER -x WANDB_API_KEY -x HF_HOME \
     --host $host_list \
 enroot start --rw \
-    -e JOB_ID -e JOB_WORK_DIR -e LOG_DIR -e BASE_FOLDER -e WANDB_API_KEY \
+    -e JOB_ID -e JOB_WORK_DIR -e LOG_DIR -e BASE_FOLDER -e WANDB_API_KEY -e HF_HOME \
     -e OMPI_COMM_WORLD_RANK \
     --mount ${MOUNT_DIR} \
     ${CONTAINER_NAME} \
