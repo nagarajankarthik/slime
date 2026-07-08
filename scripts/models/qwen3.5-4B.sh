@@ -1,6 +1,6 @@
 MODEL_ARGS=(
-   --spec "slime_plugins.models.qwen3_5" "get_qwen3_5_spec"
-   --qwen-gdn-backend "fla"
+   --spec "slime_plugins.models.qwen3_5" "get_qwen3_5_spec_custom"
+   # --qwen-gdn-backend "fla"
 
    --disable-bias-linear
    --qk-layernorm
@@ -20,6 +20,7 @@ MODEL_ARGS=(
    --rotary-percent 0.25
    --swiglu
    --vocab-size 248320
+   --no-rope-fusion
 
    --rotary-base 10000000
 
