@@ -113,6 +113,7 @@ def get_batch(
             cu_seqlens = torch.tensor(cu_seqlens, dtype=torch.int).cuda() * cp_size
 
         max_seqlen = (cu_seqlens[1:] - cu_seqlens[:-1]).max().item()
+        max_seqlen = cu_seqlens[-1].item() 
         packed_seq_params = PackedSeqParams(
             cu_seqlens_q=cu_seqlens,
             cu_seqlens_kv=cu_seqlens,

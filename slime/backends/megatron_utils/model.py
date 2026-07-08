@@ -228,7 +228,7 @@ def setup_model_and_optimizer(
     optimizer = get_megatron_optimizer(
         config=config,
         model_chunks=model,
-        use_gloo_process_groups=args.enable_gloo_process_groups,
+        use_gloo_process_groups=args.use_gloo_process_groups,
     )
     opt_param_scheduler = get_optimizer_param_scheduler(args, optimizer)
     return model, optimizer, opt_param_scheduler
@@ -757,15 +757,15 @@ def train(
 
             mtp_loss_scale = 1 / num_microbatches[step_id]
             tracker = MTPLossLoggingHelper.tracker
-            if "values" in tracker:
-                values = tracker["values"]
+            if "loss_values" in tracker:
+                values = tracker["loss_values"]
                 if tracker.get("reduce_group") is not None:
                     torch.distributed.all_reduce(values, group=tracker.get("reduce_group"))
                 if tracker.get("avg_group") is not None:
                     torch.distributed.all_reduce(values, group=tracker["avg_group"], op=torch.distributed.ReduceOp.AVG)
                 # here we assume only one mtp layer
-                mtp_losses = (tracker["values"] * mtp_loss_scale).item()
-                MTPLossLoggingHelper.clean_loss_in_tracker()
+                mtp_losses = (tracker["loss_values"] * mtp_loss_scale).item()
+                MTPLossLoggingHelper.clean_metrics_in_tracker()
 
                 # CI check: verify MTP loss is within expected bounds
                 if args.ci_test:

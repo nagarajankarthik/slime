@@ -141,10 +141,12 @@ def _get_model_provider_func(
             transformer_layer_spec = import_module(args.spec)
             # Allow the spec to be a function so that user can use customized Megatron easier.
             if callable(transformer_layer_spec):
+                print(f"NK_DEBUG: transformer_layer_spec is a callable function")
                 result = transformer_layer_spec(args, config, vp_stage)
                 # If the result is itself a model provider (callable with pre_process param),
                 # delegate model construction to it directly (e.g. glm-omni VL model).
                 if callable(result) and "pre_process" in inspect.signature(result).parameters:
+                    print(f"NK_DEBUG: transformer_layer_spec is a callable function and has pre_process param")
                     model = result(pre_process=pre_process, post_process=post_process, vp_stage=vp_stage)
                     if post_process and role == "critic":
                         model.output_layer = LinearForLastLayer(
@@ -169,7 +171,6 @@ def _get_model_provider_func(
                         moe_grouped_gemm=args.moe_grouped_gemm,
                         qk_layernorm=args.qk_layernorm,
                         multi_latent_attention=args.multi_latent_attention,
-                        moe_use_legacy_grouped_gemm=args.moe_use_legacy_grouped_gemm,
                     )
                 else:
                     transformer_layer_spec = get_gpt_layer_local_spec(
@@ -177,7 +178,6 @@ def _get_model_provider_func(
                         moe_grouped_gemm=args.moe_grouped_gemm,
                         qk_layernorm=args.qk_layernorm,
                         multi_latent_attention=args.multi_latent_attention,
-                        moe_use_legacy_grouped_gemm=args.moe_use_legacy_grouped_gemm,
                     )
 
         build_model_context = nullcontext
