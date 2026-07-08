@@ -3,10 +3,16 @@ import copy
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from megatron.bridge import AutoBridge
 from megatron.core.models.gpt.gpt_layer_specs import get_gpt_decoder_block_spec
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_block import get_num_layers_to_build
 from megatron.core.transformer.transformer_layer import get_transformer_layer_offset
+from megatron.core.models.gpt.experimental_attention_variant_module_specs import (
+        get_transformer_layer_with_experimental_attention_variant_spec,
+    get_transformer_block_with_experimental_attention_variant_spec
+)
+from megatron.bridge.models.qwen_vl.qwen35_vl_provider import _patch_standard_attention_specs, Qwen3VLSelfAttention
 from transformers.activations import ACT2FN
 
 try:
@@ -180,6 +186,7 @@ class Attention(HuggingfaceAttention):
         layer_number: int,
         cp_comm_type: str = "p2p",
         pg_collection=None,
+        name=None,
     ):
         super().__init__(
             args,
@@ -252,3 +259,50 @@ def get_qwen3_5_spec(args, config, vp_stage):
             )
             transformer_layer_spec.layer_specs[layer_id] = layer_specs
     return transformer_layer_spec
+
+def get_qwen3_5_spec_custom(args, config, vp_stage):
+    # always use the moe path for MoE models
+    if not args.num_experts:
+        config.moe_layer_freq = [0] * config.num_layers
+
+    # Define the decoder block spec
+    kwargs = {
+        "use_transformer_engine": True,
+    }
+    if vp_stage is not None:
+        kwargs["vp_stage"] = vp_stage
+    transformer_block_spec = get_gpt_decoder_block_spec(config, **kwargs)
+
+    assert config.pipeline_model_parallel_layout is None, "not support this at the moment"
+
+    print(f"NK_DEBUG: config: {config}")
+
+
+    # Slice the layer specs to only include the layers that are built in this pipeline stage.
+    num_layers_to_build = get_num_layers_to_build(config, vp_stage=vp_stage)
+    offset = get_transformer_layer_offset(config, vp_stage=vp_stage)
+
+    config.experimental_attention_variant = "gated_delta_net"
+    config.linear_attention_freq = 4
+
+    transformer_block_spec = get_transformer_block_with_experimental_attention_variant_spec(config)
+    _patch_standard_attention_specs(transformer_block_spec, Qwen3VLSelfAttention)
+    # layer_specs = get_transformer_layer_with_experimental_attention_variant_spec(config)
+    # print(f"NK_DEBUG: layer_specs[0]: {layer_specs[0]}")
+    # transformer_block_spec.layer_specs = layer_specs
+    # transformer_block_spec.layer_specs = layer_specs[offset:offset + num_layers_to_build]
+    #
+    return transformer_block_spec
+
+def get_qwen3_5_spec_bridge(args, config, vp_stage):
+    """
+    This doesn't work. Throws an Invalid Sharding Access error.
+    """
+    hf_model_name = "Qwen/Qwen3.5-4B"
+    bridge = AutoBridge.from_hf_pretrained(hf_model_name)
+    provider = bridge.to_megatron_provider()
+    provider.tensor_model_parallel_size = 1
+    provider.pipeline_model_parallel_size = 1
+    provider.finalize()
+    print(dir(provider))
+    return provider.build_language_spec()
