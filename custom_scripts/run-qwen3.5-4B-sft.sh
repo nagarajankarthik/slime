@@ -51,8 +51,8 @@ cd ${BASE_FOLDER}/slime
 
 CKPT_ARGS=(
    --hf-checkpoint ${HF_HOME}/hub/models--Qwen--Qwen3.5-4B/snapshots/851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a/
-   --load ${BASE_FOLDER}/megatron_ckpt/Qwen3.5-4B_slime/
-   --save ${BASE_FOLDER}/megatron_ckpt/Qwen3.5-4B_slime/
+   --load ${BASE_FOLDER}/megatron_ckpt/Qwen3.5-4B_test/
+   --save ${BASE_FOLDER}/megatron_ckpt/Qwen3.5-4B_test/
    --save-interval 2000000
    --no-load-optim
 )
@@ -62,9 +62,9 @@ SFT_ARGS=(
    --prompt-data ${BASE_FOLDER}/train_data/openhermes2_5.parquet
    --input-key messages
    --rollout-shuffle
-   --num-epoch 3
-   --rollout-batch-size 4096
-   --global-batch-size 4096
+   --num-epoch 1
+   --rollout-batch-size 128
+   --global-batch-size 128
 
    --loss-type sft_loss
    --loss-mask-type qwen3_5
@@ -74,7 +74,6 @@ SFT_ARGS=(
 )
 
 PERF_ARGS=(
-   --data-parallel-sharding-strategy optim_grads_params
    --tensor-model-parallel-size 1
    --sequence-parallel
    --pipeline-model-parallel-size 1
@@ -88,7 +87,7 @@ PERF_ARGS=(
 
    # --micro-batch-size 1
    --use-dynamic-batch-size
-   --max-tokens-per-gpu 65536
+   --max-tokens-per-gpu 32768
 )
 
 OPTIMIZER_ARGS=(
@@ -108,9 +107,9 @@ OPTIMIZER_ARGS=(
 )
 
 WANDB_ARGS=(
-   --use-wandb
+   # --use-wandb
    --wandb-project slime-sft-qwen3.5
-   --wandb-group 4B_TP1_CP1_fla_max_tokens_gpu_65536
+   --wandb-group 4B_TP1_CP2_fla_max_tokens_32768_megatron
    --wandb-key ${WANDB_API_KEY}
    --disable-wandb-random-suffix
 )
@@ -146,7 +145,7 @@ wait
 # Build the runtime environment JSON with proper variable substitution
 RUNTIME_ENV_JSON="{
   \"env_vars\": {
-    \"PYTHONPATH\": \"/root/Megatron-LM/\",
+    \"PYTHONPATH\": \"${BASE_FOLDER}/Megatron-LM/:${BASE_FOLDER}/Megatron-Bridge/src\",
     \"CUDA_DEVICE_MAX_CONNECTIONS\": \"1\",
     \"NCCL_NVLS_ENABLE\": \"${HAS_NVLINK}\",
     \"no_proxy\": \"${no_proxy}\",
