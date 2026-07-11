@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=qwen3.5-test
+#SBATCH --job-name=qwen3.5-rl
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:8
 #SBATCH --cpus-per-gpu=16
@@ -51,21 +51,49 @@ cp ${BASH_SCRIPT} ${LOG_DIR}
 export MASTER_PORT=$((10000 + $RANDOM % 9000))
 
 
-echo "Creating enroot container ${CONTAINER_NAME} from ${SQSH_FILE}"
-mpirun -np $NUM_NODES --host $host_list bash ${CREATE_ENROOT_SCRIPT} "${SQSH_FILE}" "${CONTAINER_NAME}"
+container_mounts=("${BASE_FOLDER}")
+container_mounts_str=$(IFS=,; echo "${container_mounts[*]}")
+HOST_VARS=$(sed 's/ \{1,\}/,/g' <<<"${!HF*} WANDB_API_KEY BASE_FOLDER")
 
-mpirun -np ${NUM_NODES} \
-    -x JOB_ID -x JOB_WORK_DIR -x LOG_DIR -x BASE_FOLDER -x WANDB_API_KEY -x HF_HOME \
-    --host $host_list \
-enroot start --rw \
-    -e JOB_ID -e JOB_WORK_DIR -e LOG_DIR -e BASE_FOLDER -e WANDB_API_KEY -e HF_HOME \
-    -e OMPI_COMM_WORLD_RANK \
-    --mount ${MOUNT_DIR} \
-    ${CONTAINER_NAME} \
-    bash -c "bash ${BASH_SCRIPT} \
+srun_args=" \
+    --nodes=${NUM_NODES} \
+    --ntasks-per-node=1 \
+    --overlap \
+    --cpu-bind=none \
+    --container-image=${SQSH_FILE} \
+    --container-mounts=${container_mounts_str} \
+    --container-env=${HOST_VARS} \
+    --container-writable \
+    --container-workdir=${BASE_FOLDER} \
+    --wait=60 \
+    --kill-on-bad-exit=1 \
+    "
+
+srun $srun_args \
+    --jobid ${SLURM_JOB_ID} \
+    bash -c "${BASH_SCRIPT} \
         ${GPUS_PER_NODE} \
         ${WORLD_SIZE} \
         ${NUM_NODES} \
         ${MASTER_ADDR} \
-        ${MASTER_PORT} | tee ${LOG_DIR}/node_\${OMPI_COMM_WORLD_RANK}.log"
+        ${MASTER_PORT} \
+        \${SLURM_PROCID} | tee ${LOG_DIR}/node_\${SLURM_PROCID}.log"
 
+# Do not use mpirun. It degrades throughput in 26.xx versions of Nemo containers
+# mpirun -np $NUM_NODES --host $host_list bash ${CREATE_ENROOT_SCRIPT} "${SQSH_FILE}" "${CONTAINER_NAME}"
+#
+# mpirun -np ${NUM_NODES} \
+#     -x JOB_ID -x JOB_WORK_DIR -x LOG_DIR -x BASE_FOLDER -x WANDB_API_KEY -x HF_HOME \
+#     --host $host_list \
+# enroot start --rw \
+#     -e JOB_ID -e JOB_WORK_DIR -e LOG_DIR -e BASE_FOLDER -e WANDB_API_KEY -e HF_HOME \
+#     -e OMPI_COMM_WORLD_RANK \
+#     --mount ${MOUNT_DIR} \
+#     ${CONTAINER_NAME} \
+#     bash -c "bash ${BASH_SCRIPT} \
+#         ${GPUS_PER_NODE} \
+#         ${WORLD_SIZE} \
+#         ${NUM_NODES} \
+#         ${MASTER_ADDR} \
+#         ${MASTER_PORT} | tee ${LOG_DIR}/node_\${OMPI_COMM_WORLD_RANK}.log"
+#
