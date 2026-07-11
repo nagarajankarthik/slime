@@ -30,7 +30,6 @@ if [ -z "${MASTER_ADDR}" ]; then
   echo "MASTER_ADDR is not set. Please set it to the master node address."
   exit 1
 fi
-# export MASTER_ADDR="127.0.0.1"
 
 # will prevent ray from buffering stdout/stderr
 export PYTHONUNBUFFERED=1
@@ -51,10 +50,11 @@ cd ${BASE_FOLDER}/slime
 
 CKPT_ARGS=(
    --hf-checkpoint ${HF_HOME}/hub/models--Qwen--Qwen3.5-4B/snapshots/851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a/
-   --load ${BASE_FOLDER}/megatron_ckpt/Qwen3.5-4B_test/
-   --save ${BASE_FOLDER}/megatron_ckpt/Qwen3.5-4B_test/
+   --load ${BASE_FOLDER}/megatron_ckpt/Qwen3.5-4B_megatron/
+   --save ${BASE_FOLDER}/megatron_ckpt/Qwen3.5-4B_megatron/
    --save-interval 2000000
    --no-load-optim
+   --megatron-to-hf-mode bridge
 )
 
 SFT_ARGS=(
