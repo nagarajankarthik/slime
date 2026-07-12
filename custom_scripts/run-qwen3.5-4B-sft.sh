@@ -48,6 +48,9 @@ source "${SCRIPT_DIR}/models/qwen3.5-4B.sh"
 
 cd ${BASE_FOLDER}/slime
 
+# Install dependencies
+uv pip install --no-deps sglang-router torch-memory-saver
+
 CKPT_ARGS=(
    --hf-checkpoint ${HF_HOME}/hub/models--Qwen--Qwen3.5-4B/snapshots/851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a/
    --load ${BASE_FOLDER}/megatron_ckpt/Qwen3.5-4B_megatron/
