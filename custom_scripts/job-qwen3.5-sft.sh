@@ -38,11 +38,12 @@ if [ ${CLUSTER_NAME} == "gcp" ]; then
 elif [ ${CLUSTER_NAME} == "smc" ]; then
     export BASE_FOLDER="/mnt/weka/aisg/users/karthik/model_training_team/slime_test"
     export MOUNT_DIR="/mnt/weka/aisg"
-    export SQSH_FILE="${MOUNT_DIR}/sqsh/slime_10_june.sqsh"
-    export SQSH_FILE="${MOUNT_DIR}/sqsh/slime_flash_linear_attn_context_parallel.sqsh"
+    # Something wrong with the env in slime containers. Getting grad norm NaN during training.
+    # export SQSH_FILE="${MOUNT_DIR}/sqsh/slime_10_june.sqsh"
+    # export SQSH_FILE="${MOUNT_DIR}/sqsh/slime_flash_linear_attn_context_parallel.sqsh"
+    export SQSH_FILE="${MOUNT_DIR}/sqsh/nemo:26.04.sqsh"
 fi
 # ---- Cluster specific section end ----
-export CREATE_ENROOT_SCRIPT="${BASE_FOLDER}/slime/custom_scripts/create_enroot.sh"
 export LOG_DIR="${BASE_FOLDER}/logs/${JOB_ID}"
 mkdir -p ${LOG_DIR}
 export BASH_SCRIPT="${BASE_FOLDER}/slime/custom_scripts/run-qwen3.5-122B-A10B-sft.sh"
@@ -82,6 +83,7 @@ srun $srun_args \
 # Do not use mpirun. It degrades throughput in 26.xx versions of Nemo containers
 # mpirun -np $NUM_NODES --host $host_list bash ${CREATE_ENROOT_SCRIPT} "${SQSH_FILE}" "${CONTAINER_NAME}"
 #
+# export CREATE_ENROOT_SCRIPT="${BASE_FOLDER}/slime/custom_scripts/create_enroot.sh"
 # mpirun -np ${NUM_NODES} \
 #     -x JOB_ID -x JOB_WORK_DIR -x LOG_DIR -x BASE_FOLDER -x WANDB_API_KEY -x HF_HOME \
 #     --host $host_list \
