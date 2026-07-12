@@ -108,6 +108,7 @@ esac
 WORKSPACE=${WORKSPACE:-/workspace}
 
 export HF_HOME="/mnt/weka/all/.cache/huggingface"
+export BASE_DIR="/mnt/weka/aisg/users/karthik/model_training_team/slime_test"
 # export UV_CACHE_DIR="/path/to/shared/uv_cache"
 # export HF_HOME="/path/to/shared/HF_HOME"
 # export HF_TOKEN="hf_your_token_here"
@@ -179,7 +180,7 @@ CLI_OVERRIDES="\
 # For multinode runs, the recipe's online HF path can be unstable. Pass --hf_path
 # with a local model directory for more reliable config loading, e.g.:
 #   --hf_path ${WORKSPACE}/models/Qwen/${HF_MODEL_NAME}
-CMD="cd ${SLURM_SUBMIT_DIR}/Megatron-Bridge && uv run --no-sync torchrun --nproc-per-node $SLURM_GPUS_ON_NODE scripts/training/run_recipe.py \
+CMD="cd ${BASE_DIR}/Megatron-Bridge && uv run --no-sync torchrun --nproc-per-node $SLURM_GPUS_ON_NODE scripts/training/run_recipe.py \
     --recipe $RECIPE \
     --step_func qwen3_vl_step \
     $CLI_OVERRIDES"
@@ -197,10 +198,12 @@ if [ -n "$CONTAINER_MOUNTS" ]; then
 fi
 
 # $SRUN_CMD bash -c "$CMD"
-export PYTHONPATH=${SLURM_SUBMIT_DIR}/Megatron-Bridge/src
+export PYTHONPATH=${BASE_DIR}/Megatron-Bridge/src:${BASE_DIR}/Megatron-LM
+# export PYTHONPATH=/mnt/weka/aisg/users/karthik/model_training_team/aspire2b_test/repos/Megatron-Bridge/src:/mnt/weka/aisg/users/karthik/model_training_team/aspire2b_test/repos/Megatron-Bridge/3rdparty/Megatron-LM
+export TRITON_CACHE_DIR="/tmp/triton_cache"
 bash -c "$CMD"
 
-rm -rf ${SLURM_SUBMIT_DIR}/Megatron-Bridge/nemo_experiments/default/checkpoints
+rm -rf ${BASE_DIR}/Megatron-Bridge/nemo_experiments/default/checkpoints
 
 echo "======================================"
 echo "Job completed"
