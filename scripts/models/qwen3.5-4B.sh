@@ -26,4 +26,5 @@ MODEL_ARGS=(
 
    # qwen3.5 specific
    --attention-output-gate
+   --freeze-params-name-list "vision"
 )
