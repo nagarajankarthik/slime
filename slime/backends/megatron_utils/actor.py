@@ -35,9 +35,9 @@ from .initialize import init, is_megatron_main_rank
 from .loss import compute_advantages_and_returns, get_log_probs_and_entropy, get_values
 from .model import forward_only, initialize_model_and_optimizer, save, train
 from .update_weight.common import named_params_and_buffers
-from .update_weight.update_weight_from_disk import UpdateWeightFromDisk
-from .update_weight.update_weight_from_distributed import UpdateWeightFromDistributed
-from .update_weight.update_weight_from_tensor import UpdateWeightFromTensor
+# from .update_weight.update_weight_from_disk import UpdateWeightFromDisk
+# from .update_weight.update_weight_from_distributed import UpdateWeightFromDistributed
+# from .update_weight.update_weight_from_tensor import UpdateWeightFromTensor
 
 logging.getLogger("megatron").setLevel(logging.WARNING)
 
@@ -145,34 +145,34 @@ class MegatronTrainRayActor(TrainRayActor):
             hf_vocab = getattr(self.hf_config, "vocab_size", None)
             self.args.vocab_size = hf_vocab if hf_vocab is not None else self.tokenizer.vocab_size
 
-        if self.args.colocate:
-            assert (
-                self.args.update_weight_mode == "full"
-            ), "--update-weight-mode=delta is not supported with --colocate"
-            update_weight_cls = UpdateWeightFromTensor
-        elif self.args.update_weight_mode == "delta":
-            # Lazy import: the delta module pulls DeltaEncoding/DeltaParam/DeltaSpec from
-            # sglang, which only exist on newer images. Importing eagerly would break old
-            # images even when delta mode is unused.
-            from .update_weight.update_weight_from_distributed_delta import UpdateWeightFromDistributedDelta
-
-            update_weight_cls = UpdateWeightFromDistributedDelta
-        else:
-            assert self.args.update_weight_mode == "full"
-            if self.args.update_weight_transport == "disk":
-                update_weight_cls = UpdateWeightFromDisk
-            else:
-                assert (
-                    self.args.update_weight_mode == "full" and self.args.update_weight_transport == "nccl"
-                ), f"unsupported weight sync mode/transport: {self.args.update_weight_mode!r}/{self.args.update_weight_transport!r}"
-                update_weight_cls = UpdateWeightFromDistributed
-        self.weight_updater = update_weight_cls(
-            self.args,
-            self.model,
-            weights_getter=lambda: self.weights_backuper.get("actor"),
-            model_name=type(self.hf_config).__name__.lower() if self.args.model_name is None else self.args.model_name,
-            quantization_config=getattr(self.hf_config, "quantization_config", None),
-        )
+        # if self.args.colocate:
+        #     assert (
+        #         self.args.update_weight_mode == "full"
+        #     ), "--update-weight-mode=delta is not supported with --colocate"
+        #     update_weight_cls = UpdateWeightFromTensor
+        # elif self.args.update_weight_mode == "delta":
+        #     # Lazy import: the delta module pulls DeltaEncoding/DeltaParam/DeltaSpec from
+        #     # sglang, which only exist on newer images. Importing eagerly would break old
+        #     # images even when delta mode is unused.
+        #     from .update_weight.update_weight_from_distributed_delta import UpdateWeightFromDistributedDelta
+        #
+        #     update_weight_cls = UpdateWeightFromDistributedDelta
+        # else:
+        #     assert self.args.update_weight_mode == "full"
+        #     if self.args.update_weight_transport == "disk":
+        #         update_weight_cls = UpdateWeightFromDisk
+        #     else:
+        #         assert (
+        #             self.args.update_weight_mode == "full" and self.args.update_weight_transport == "nccl"
+        #         ), f"unsupported weight sync mode/transport: {self.args.update_weight_mode!r}/{self.args.update_weight_transport!r}"
+        #         update_weight_cls = UpdateWeightFromDistributed
+        # self.weight_updater = update_weight_cls(
+        #     self.args,
+        #     self.model,
+        #     weights_getter=lambda: self.weights_backuper.get("actor"),
+        #     model_name=type(self.hf_config).__name__.lower() if self.args.model_name is None else self.args.model_name,
+        #     quantization_config=getattr(self.hf_config, "quantization_config", None),
+        # )
 
         # empty cache after initialization
         clear_memory()

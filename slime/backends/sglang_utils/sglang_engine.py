@@ -9,8 +9,8 @@ from urllib.parse import quote
 import requests
 import sglang_router
 from packaging.version import parse
-from sglang.srt.server_args import ServerArgs
-from sglang.srt.utils import kill_process_tree
+# from sglang.srt.server_args import ServerArgs
+# from sglang.srt.utils import kill_process_tree
 from urllib3.exceptions import NewConnectionError
 
 from slime.backends.sglang_utils.external import get_server_info
@@ -19,6 +19,13 @@ from slime.utils.http_utils import get_host_info
 
 logger = logging.getLogger(__name__)
 
+@dataclasses.dataclass
+class ServerArgs:
+    """
+    Dummy ServerArgs class to ensure imports work even if sglang is not installed.
+    """
+    host: str
+    port: int
 
 def get_base_gpu_id(args, rank):
     num_gpus = min(args.num_gpus_per_node, args.rollout_num_gpus_per_engine)
