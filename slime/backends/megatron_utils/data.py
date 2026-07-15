@@ -228,7 +228,7 @@ def get_batch(
             cu_seqlens,
             cu_seqlens_padded,
         ) = _prepare_vlm_batch_for_megatron(
-            input_ids = input_ids,
+            input_ids = tokens,
             seq_lengths = None,
             pad_individual_seqs_to_multiple_of = pad_multiplier,
             pad_full_seq_to = token_budget_per_gpu * cp_size,
@@ -236,6 +236,10 @@ def get_batch(
         position_ids = None
         tokens = input_ids_2d
         batch["attention_mask"] = attention_mask
+        # Setting this so that subsequent code has a value to access to evaluate loss mask.
+        # Its value doesn't matter since the loss mask is not used when the delegate_pack_shard
+        # option is enabled.
+        max_seqlen = batch["max_seq_lens"][0]
 
     elif qkv_format == "bshd":
         max_seqlen = batch["max_seq_lens"][0]
@@ -328,8 +332,9 @@ def get_batch(
         loss_masks = torch.cat(loss_masks)
         loss_masks = F.pad(loss_masks, (0, pad), value=0).unsqueeze(0)
 
-    assert loss_masks.shape == tokens.shape, f"loss_masks.shape: {loss_masks.shape}, tokens.shape: {tokens.shape}"
-    batch["full_loss_masks"] = loss_masks
+    if not delegate_pack_shard:
+        assert loss_masks.shape == tokens.shape, f"loss_masks.shape: {loss_masks.shape}, tokens.shape: {tokens.shape}"
+        batch["full_loss_masks"] = loss_masks
 
     # Process multimodal training tensors if present
     multimodal_train_inputs = batch.get("multimodal_train_inputs", None)
