@@ -80,16 +80,18 @@ PERF_ARGS=(
    --tensor-model-parallel-size 1
    --sequence-parallel
    --pipeline-model-parallel-size 1
-   --context-parallel-size 1
+   --context-parallel-size 2
    --expert-model-parallel-size 1
    --expert-tensor-parallel-size 1
+   --delegate-pack-shard
+   --qkv-format bshd
 
    --recompute-granularity full
    --recompute-method uniform
    --recompute-num-layers 1
 
-   # --micro-batch-size 1
-   --use-dynamic-batch-size
+   --micro-batch-size 2
+   # --use-dynamic-batch-size
    --max-tokens-per-gpu 32768
 )
 
