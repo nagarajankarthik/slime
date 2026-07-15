@@ -121,6 +121,14 @@ def get_slime_extra_args_provider(add_custom_arguments=None):
                 default="fla",
                 help="GDN implementation backend for Qwen linear-attention layers.",
             )
+
+            parser.add_argument(
+                "--delegate-pack-shard",
+                action="store_true",
+                default=False,
+                help="Delegate sequence packing and sharding across CP ranks to the megatron model implemntation. Required if training qwen3.5 using the Megatron implementation of this model.",
+            )
+
             parser.add_argument(
                 "--train-env-vars",
                 type=json.loads,
@@ -2013,5 +2021,8 @@ def slime_validate_args(args):
 
     if args.only_train_params_name_list and args.freeze_params_name_list:
         raise ValueError("You can only specify ONE of: --only-train-params-name-list, or --freeze-params-name-list.")
+
+    if args.delegate_pack_shard:
+        assert args.qkv_format == "bshd", "delegate_pack_shard is only supported for bshd format."
 
     _validate_update_weight_args(args)

@@ -506,6 +506,8 @@ def train_one_step(
             args.data_pad_size_multiplier,
             args.qkv_format,
             args.allgather_cp,
+            args.delegate_pack_shard,
+            args.max_tokens_per_gpu,
         )
 
         if os.environ.get("ENABLE_ROUTING_REPLAY", "0") == "1":
@@ -523,6 +525,21 @@ def train_one_step(
                 packed_seq_params=batch["packed_seq_params"],
                 loss_mask=batch["full_loss_masks"],
             )
+        elif args.delegate_pack_shard:
+            # See `model_forward` in nemo_rl/models/megatron/train.py
+            forward_kwargs = {
+                "input_ids": batch["tokens"],
+                "position_ids": None,
+                "attention_mask": batch["attention_mask"],
+                "labels": None,
+                "packed_seq_params": batch["packed_seq_params"],
+                "loss_mask": None,
+            }
+
+            if batch["multimodal_train_inputs"] is not None:
+                forward_kwargs.update(batch["multimodal_train_inputs"])
+
+            output_tensor = model(**forward_kwargs)
         else:
             forward_kwargs = {
                 "input_ids": batch["tokens"],

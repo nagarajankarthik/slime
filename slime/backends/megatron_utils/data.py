@@ -8,6 +8,7 @@ import torch.distributed as dist
 import torch.nn.functional as F
 from megatron.core import mpu
 from megatron.core.packed_seq_params import PackedSeqParams
+from typing import Optional
 
 from slime.utils import train_metric_utils
 from slime.utils.flops_utils import calculate_fwd_flops
@@ -24,6 +25,155 @@ from .cp_utils import (
 
 logger = logging.getLogger(__name__)
 
+def _round_up_to_multiple(value: int, multiple: int) -> int:
+    return (
+        ((value + multiple - 1) // multiple * multiple)
+        if value % multiple != 0
+        else value
+    )
+
+
+def _prepare_vlm_batch_for_megatron(
+    input_ids: list[torch.Tensor],
+    seq_lengths: torch.Tensor = None,
+    pad_individual_seqs_to_multiple_of: int = 128,
+    pad_full_seq_to: Optional[int] = None,
+) -> tuple[
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    PackedSeqParams,
+    Optional[torch.Tensor],
+    torch.Tensor,
+]:
+    """
+    Copied from nemo_rl/models/megatron/data.py
+
+    Prepare a [B, max_seq] batch for a model that does its own packing + CP sharding.
+
+
+    Used with mbridge VLM wrappers (e.g. Qwen3VL). The model's forward calls
+    preprocess_packed_seqs internally, which re-packs + CP-shards from
+    attention_mask. So NeMo-RL must NOT pre-pack / CP-shard; it only:
+      * pads each sequence (along dim 1) to pad_individual_seqs_to_multiple_of,
+      * builds a bool attention_mask describing real token validity,
+      * builds cu_seqlens_padded describing full (pre-shard) packed layout,
+      * hands everything to the model as [B, max_seq].
+
+    When ``pad_full_seq_to`` is set (PP>1 requires a constant total packed
+    length across microbatches), the last sequence's effective length is
+    extended so ``sum(padded_lens) == pad_full_seq_to``. These extra positions
+    are treated as "valid" by the model (so mbridge's internal packing stays
+    consistent) but should be masked out at the loss layer via token_mask.
+
+    Returns:
+        - input_ids: packed [1, T] view for downstream logprob/loss target slicing
+        - input_ids_cp_sharded: [B, padded_max_seq] for the model forward
+        - attention_mask: [B, padded_max_seq] bool (True for valid tokens)
+        - packed_seq_params: PackedSeqParams(qkv_format="thd", cu_seqlens_*=padded)
+        - cu_seqlens: None (unpadded cu_seqlens unused in this path)
+        - cu_seqlens_padded: [B+1] int32 matching packed_seq_params
+    """
+
+    #NK modification
+    batch_size = len(input_ids)
+    device = input_ids[0].device
+    # batch_size, _ = input_ids.shape
+    # device = input_ids.device
+    align = max(1, pad_individual_seqs_to_multiple_of)
+
+    # One CPU-GPU sync per call via .tolist(); per-seq arithmetic runs on CPU
+    # ints (fast) instead of .item() in a loop (which sync'd per seq).
+    if seq_lengths is None:
+        lengths_list = [t.size(0) for t in input_ids]
+    elif torch.is_tensor(seq_lengths):
+        lengths_list = seq_lengths.tolist()
+    else:
+        lengths_list = list(seq_lengths)
+    padded_lens = [_round_up_to_multiple(L, align) for L in lengths_list]
+
+    # PP>1: force sum(padded_lens) to a fixed value so every microbatch produces
+    # the same decoder-side packed length. We mirror _pack_sequences_for_megatron
+    # by absorbing the deficit into the LAST sequence's effective length. The
+    # extra positions look valid to the model but are zero-ed out at the loss
+    # layer via token_mask (consistent with the non-VLM path).
+    if pad_full_seq_to is not None and batch_size > 0:
+        natural_sum = sum(padded_lens)
+        deficit = pad_full_seq_to - natural_sum
+        assert deficit >= 0, (
+            f"pad_full_seq_to ({pad_full_seq_to}) < natural padded sum "
+            f"({natural_sum}); increase pad_full_seq_to."
+        )
+        assert deficit % align == 0, (
+            f"pad_full_seq_to deficit ({deficit}) must be a multiple of "
+            f"pad_individual_seqs_to_multiple_of ({align})."
+        )
+        if deficit > 0:
+            lengths_list[-1] += deficit
+            padded_lens[-1] += deficit
+
+    padded_max = max(padded_lens) if padded_lens else 0
+
+    # Row-pad input_ids to padded_max so all sequences live in one rectangular tensor.
+    #NK modification
+    pad_amt_list = [padded_max - t.size(0) for t in input_ids]
+    assert all(p >= 0 for p in pad_amt_list), f"pad_amt_list: {pad_amt_list}"
+    input_ids_2d = torch.stack([torch.nn.functional.pad(t, (0, padded_max - t.size(0))) for t in input_ids])
+    # if input_ids.shape[1] < padded_max:
+    #     pad_amt = padded_max - input_ids.shape[1]
+    #     input_ids_2d = torch.nn.functional.pad(input_ids, (0, pad_amt), value=0)
+    # elif input_ids.shape[1] > padded_max:
+    #     input_ids_2d = input_ids[:, :padded_max].contiguous()
+    # else:
+    #     input_ids_2d = input_ids
+
+    # Vectorised attention_mask: positions < padded length, broadcast over batch.
+    # We use padded_lens (not raw lengths) so mbridge's preprocess_packed_seqs,
+    # which recomputes seqlens from attention_mask.sum, sees the same packed
+    # total as our cu_seqlens_padded. Otherwise a mismatch between raw length
+    # and align-padded length leads to GDN's cu_seqlens vs total_seq_len check
+    # firing. Tokens in the padded tail are masked out at the loss layer.
+    padded_lens_tensor = torch.tensor(padded_lens, dtype=torch.long, device=device)
+    positions = torch.arange(padded_max, device=device)
+    attention_mask = positions.unsqueeze(0) < padded_lens_tensor.unsqueeze(1)
+
+    # Build cu_seqlens on CPU then H2D once.
+    cu_vals = [0]
+    for p in padded_lens:
+        cu_vals.append(cu_vals[-1] + p)
+    cu_seqlens_padded = torch.tensor(cu_vals, dtype=torch.int32, device=device)
+
+    packed_seq_params = PackedSeqParams(
+        qkv_format="thd",
+        cu_seqlens_q=cu_seqlens_padded,
+        cu_seqlens_kv=cu_seqlens_padded,
+        cu_seqlens_q_padded=cu_seqlens_padded,
+        cu_seqlens_kv_padded=cu_seqlens_padded,
+        max_seqlen_q=padded_max,
+        max_seqlen_kv=padded_max,
+    )
+
+    # Packed (unsharded) view for downstream logprob / loss code that slices
+    # per-sequence targets via cu_seqlens_padded.
+    packed_segments = [input_ids_2d[i, :p] for i, p in enumerate(padded_lens)]
+    packed_input_ids = (
+        torch.cat(packed_segments, dim=0).unsqueeze(0)
+        if packed_segments
+        else input_ids_2d.new_zeros((1, 0))
+    )
+
+    # input_ids_cp_sharded keeps the [B, max_seq] layout: the model (mbridge
+    # Qwen3VL) runs its own preprocess_packed_seqs to pack + CP-shard.
+    # input_ids is the packed (but not CP-sharded) view for target/logprob
+    # post-processing, which uses cu_seqlens_padded to slice per sequence.
+    return (
+        packed_input_ids,
+        input_ids_2d,
+        attention_mask,
+        packed_seq_params,
+        None,
+        cu_seqlens_padded,
+    )
 
 def get_batch(
     data_iterator: "DataIterator",
@@ -31,6 +181,8 @@ def get_batch(
     pad_multiplier: int = 128,
     qkv_format: str = "thd",
     allgather_cp: bool = False,
+    delegate_pack_shard: bool = False,
+    token_budget_per_gpu: int = 128,
 ) -> dict[str, torch.Tensor | PackedSeqParams | list[torch.Tensor] | None]:
     """
     Generate a CP-ready micro-batch with packed sequence parameters.
@@ -67,7 +219,25 @@ def get_batch(
     cp_size = mpu.get_context_parallel_world_size()
     cp_rank = mpu.get_context_parallel_rank()
 
-    if qkv_format == "bshd":
+    if delegate_pack_shard:
+        (
+            packed_input_ids,
+            input_ids_2d,
+            attention_mask,
+            packed_seq_params,
+            cu_seqlens,
+            cu_seqlens_padded,
+        ) = _prepare_vlm_batch_for_megatron(
+            input_ids = input_ids,
+            seq_lengths = None,
+            pad_individual_seqs_to_multiple_of = pad_multiplier,
+            pad_full_seq_to = token_budget_per_gpu * cp_size,
+        )
+        position_ids = None
+        tokens = input_ids_2d
+        batch["attention_mask"] = attention_mask
+
+    elif qkv_format == "bshd":
         max_seqlen = batch["max_seq_lens"][0]
         assert max([t.size(0) for t in tokens]) <= max_seqlen
         tokens = [slice_with_cp(t, pad_token_id, qkv_format, max_seqlen) for t in tokens]
