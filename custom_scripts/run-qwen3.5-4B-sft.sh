@@ -66,8 +66,8 @@ SFT_ARGS=(
    --input-key messages
    --rollout-shuffle
    --num-epoch 1
-   --rollout-batch-size 128
-   --global-batch-size 128
+   --rollout-batch-size 64
+   --global-batch-size 64
 
    --loss-type sft_loss
    --loss-mask-type qwen3_5
@@ -80,7 +80,7 @@ PERF_ARGS=(
    --tensor-model-parallel-size 1
    --sequence-parallel
    --pipeline-model-parallel-size 1
-   --context-parallel-size 2
+   --context-parallel-size 1
    --expert-model-parallel-size 1
    --expert-tensor-parallel-size 1
    --delegate-pack-shard
@@ -92,7 +92,7 @@ PERF_ARGS=(
 
    --micro-batch-size 2
    # --use-dynamic-batch-size
-   --max-tokens-per-gpu 32768
+   --max-tokens-per-gpu 8192
 )
 
 OPTIMIZER_ARGS=(
@@ -112,9 +112,9 @@ OPTIMIZER_ARGS=(
 )
 
 WANDB_ARGS=(
-   # --use-wandb
+   --use-wandb
    --wandb-project slime-sft-qwen3.5
-   --wandb-group 4B_TP1_CP2_fla_max_tokens_32768_megatron
+   --wandb-group 4B_TP1_CP1_debug_max_tokens_8192_megatron
    --wandb-key ${WANDB_API_KEY}
    --disable-wandb-random-suffix
 )
