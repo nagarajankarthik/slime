@@ -45,10 +45,11 @@ elif [ ${CLUSTER_NAME} == "smc" ]; then
 fi
 # ---- Cluster specific section end ----
 export LOG_DIR="${BASE_FOLDER}/logs/${JOB_ID}"
+export SCRIPT_DIR="${BASE_FOLDER}/slime/custom_scripts"
+export LAUNCH_SCRIPT="run-qwen3.5-4B-sft.sh"
 mkdir -p ${LOG_DIR}
-export BASH_SCRIPT="${BASE_FOLDER}/slime/custom_scripts/run-qwen3.5-122B-A10B-sft.sh"
-export BASH_SCRIPT="${BASE_FOLDER}/slime/custom_scripts/run-qwen3.5-4B-sft.sh"
-cp ${BASH_SCRIPT} ${LOG_DIR}
+cp ${SCRIPT_DIR}/${LAUNCH_SCRIPT} ${LOG_DIR}
+export BASH_SCRIPT="${LOG_DIR}/${LAUNCH_SCRIPT}"
 export MASTER_PORT=$((10000 + $RANDOM % 9000))
 
 
