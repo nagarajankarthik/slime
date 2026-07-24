@@ -1,13 +1,14 @@
 #!/bin/bash
-#SBATCH --job-name=qwen3.5-rl
-#SBATCH --nodes=1
+#SBATCH --job-name=nemotron-super-rl
+#SBATCH --nodes=2
+#SBATCH --ntasks-per-node=1
 #SBATCH --gres=gpu:8
 #SBATCH --cpus-per-gpu=16
-#SBATCH --time=24:00:00
+#SBATCH --time=1440:00:00
 #SBATCH --output=/mnt/weka/aisg/users/karthik/model_training_team/slime_test/slurm_logs/%j.out
 
 
-if [ -n "${SLURM_JOB_NODELIST}" ]; then
+if [ -n "${SLURM_JOB_ID}" ]; then
     export JOB_WORK_DIR=${SLURM_SUBMIT_DIR}
     export JOB_ID=${SLURM_JOB_ID}
     export JOB_NAME=${SLURM_JOB_NAME}
@@ -23,7 +24,7 @@ readarray -t host_array <<< "$hosts"
 host_list=$(IFS=,; echo "${host_array[*]}")
 
 
-export MASTER_ADDR=$(hostname)
+export MASTER_HOST=$(hostname)
 export GPUS_PER_NODE=$(nvidia-smi -L | wc -l)
 export WORLD_SIZE=$((GPUS_PER_NODE * NUM_NODES))
 export CONTAINER_NAME="slime_test"
@@ -46,7 +47,8 @@ fi
 # ---- Cluster specific section end ----
 export LOG_DIR="${BASE_FOLDER}/logs/${JOB_ID}"
 export SCRIPT_DIR="${BASE_FOLDER}/slime/custom_scripts"
-export LAUNCH_SCRIPT="run-qwen3.5-4B-sft.sh"
+export LAUNCH_SCRIPT="run_nemotron_120b_a12b.sh"
+# export LAUNCH_SCRIPT="run-qwen3.5-4B-sft.sh"
 mkdir -p ${LOG_DIR}
 cp ${SCRIPT_DIR}/${LAUNCH_SCRIPT} ${LOG_DIR}
 export BASH_SCRIPT="${LOG_DIR}/${LAUNCH_SCRIPT}"
@@ -79,6 +81,7 @@ srun $srun_args \
         ${NUM_NODES} \
         ${MASTER_ADDR} \
         ${MASTER_PORT} \
+        ${MASTER_HOST} \
         \${SLURM_PROCID} | tee ${LOG_DIR}/node_\${SLURM_PROCID}.log"
 
 # Do not use mpirun. It degrades throughput in 26.xx versions of Nemo containers
