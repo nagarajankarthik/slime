@@ -1,0 +1,144 @@
+#!/bin/bash
+#SBATCH --job-name=nemotron-super-rl
+#SBATCH --nodes=2
+#SBATCH --ntasks-per-node=1
+#SBATCH --gres=gpu:8
+#SBATCH --cpus-per-gpu=16
+#SBATCH --time=1440:00:00
+#SBATCH --output=/mnt/weka/aisg/users/karthik/model_training_team/slime_test/slurm_logs/%j.out
+
+#PBS -N nemotron-super-rl
+#PBS -l select=2:ngpus=8:ncpus=128
+#PBS -l walltime=24:00:00
+#PBS -q AISG_debug
+#PBS -j oe
+#PBS -o /scratch_aisg/scratch_aisg/karthik/slime_test/job_logs/
+
+if [ -n "${SLURM_JOB_ID}" ]; then
+    export JOB_ID=${SLURM_JOB_ID}
+    export JOB_NAME=${SLURM_JOB_NAME}
+    hosts=$(scontrol show hostnames ${SLURM_JOB_NODELIST})
+    export MASTER_ADDR=$(scontrol show hostnames ${SLURM_JOB_NODELIST} | head -n 1)
+    export NUM_NODES=${SLURM_JOB_NUM_NODES}
+    export MASTER_ADDR=$(hostname -I | tr ' ' '\n' | grep '^198\.' | head -n1)
+elif [ -n "${PBS_JOBID}" ]; then
+    export JOB_ID=${PBS_JOBID}
+    export JOB_NAME=${PBS_JOBNAME}
+    hosts=$(cat $PBS_NODEFILE | uniq)
+    export MASTER_ADDR=$(cat $PBS_NODEFILE | head -1)
+    export NUM_NODES=$(cat $PBS_NODEFILE | uniq | wc -l)
+    export MASTER_ADDR=$(hostname -I | tr ' ' '\n' | grep '^192\.' | head -n1)
+fi
+
+readarray -t host_array <<< "$hosts"
+host_list=$(IFS=,; echo "${host_array[*]}")
+
+echo "NUM_NODES: ${NUM_NODES}"
+
+export GPUS_PER_NODE=$(nvidia-smi -L | wc -l)
+export WORLD_SIZE=$((GPUS_PER_NODE * NUM_NODES))
+export CONTAINER_NAME="slime_test"
+export CLUSTER_NAME="smc"
+
+# ---- Cluster specific section ----
+if [ ${CLUSTER_NAME} == "gcp" ]; then
+    export BASE_FOLDER="/mnt/lustre/gcp640426-lustre1/aisg/users/karthik/model_training_team/slime_test"
+    export MOUNT_DIR="/mnt/lustre/gcp640426-lustre1/aisg/users/karthik"
+    export SQSH_FILE="${BASE_FOLDER}/slime_latest.sqsh"
+    module load openmpi/v4.1.x
+elif [ ${CLUSTER_NAME} == "smc" ]; then
+    export BASE_FOLDER="/mnt/weka/aisg/users/karthik/model_training_team/slime_test"
+    export MOUNT_DIR="/mnt/weka/aisg"
+    # Something wrong with the env in slime containers. Getting grad norm NaN during training.
+    # export SQSH_FILE="${MOUNT_DIR}/sqsh/slime_10_june.sqsh"
+    # export SQSH_FILE="${MOUNT_DIR}/sqsh/slime_flash_linear_attn_context_parallel.sqsh"
+    export SQSH_FILE="${MOUNT_DIR}/sqsh/nemo:26.04.sqsh"
+elif [ ${CLUSTER_NAME} == "hopper" ]; then
+    export BASE_FOLDER="/scratch_aisg/scratch_aisg/karthik/slime_test/"
+    export MOUNT_DIR="/scratch_aisg/scratch_aisg/karthik/slime_test/"
+    export SIF_FILE="/scratch_aisg/scratch_aisg/karthik/sif/nemo_26_04.sif"
+    module load singularity/1.3.1
+    module load openmpi/gcc/64/4.1.5
+fi
+
+
+# ---- Cluster specific section end ----
+export LOG_DIR="${BASE_FOLDER}/logs/${JOB_ID}"
+export SCRIPT_DIR="${BASE_FOLDER}/slime/custom_scripts"
+export LAUNCH_SCRIPT="run_nemotron_120b_a12b_updated.sh"
+# export LAUNCH_SCRIPT="run-qwen3.5-4B-sft.sh"
+mkdir -p ${LOG_DIR}
+cp ${SCRIPT_DIR}/${LAUNCH_SCRIPT} ${LOG_DIR}
+export BASH_SCRIPT="${LOG_DIR}/${LAUNCH_SCRIPT}"
+export MASTER_PORT=$((10000 + $RANDOM % 9000))
+chmod 770 ${BASH_SCRIPT}
+
+
+container_mounts=("${BASE_FOLDER}")
+container_mounts_str=$(IFS=,; echo "${container_mounts[*]}")
+HOST_VARS=$(sed 's/ \{1,\}/,/g' <<<"${!HF*} WANDB_API_KEY BASE_FOLDER")
+echo $host_list
+
+if [ -n "${SLURM_JOB_ID}" ]; then
+    srun_args=" \
+        --nodes=${NUM_NODES} \
+        --ntasks-per-node=1 \
+        --overlap \
+        --cpu-bind=none \
+        --container-image=${SQSH_FILE} \
+        --container-mounts=${container_mounts_str} \
+        --container-env=${HOST_VARS} \
+        --container-writable \
+        --container-workdir=${BASE_FOLDER} \
+        --wait=60 \
+        --kill-on-bad-exit=1 \
+        "
+
+    srun $srun_args \
+        --jobid ${SLURM_JOB_ID} \
+        bash -c "${BASH_SCRIPT} \
+            ${GPUS_PER_NODE} \
+            ${WORLD_SIZE} \
+            ${NUM_NODES} \
+            ${MASTER_ADDR} \
+            ${MASTER_PORT} \
+            \${SLURM_PROCID} | tee ${LOG_DIR}/node_\${SLURM_PROCID}.log"
+elif [ -n "${PBS_JOBID}" ]; then
+    mpirun -np ${NUM_NODES} \
+        --hostfile ${PBS_NODEFILE} \
+        -x JOB_ID -x LOG_DIR -x BASE_FOLDER -x WANDB_API_KEY -x HF_HOME \
+        apptainer exec --nv --writable-tmpfs \
+        --bind ${BASE_FOLDER} \
+        --bind ${HF_HOME} \
+        ${SIF_FILE}   \
+        bash -c "
+        ${BASH_SCRIPT} \
+            ${GPUS_PER_NODE} \
+            ${WORLD_SIZE} \
+            ${NUM_NODES} \
+            ${MASTER_ADDR} \
+            ${MASTER_PORT} \
+            \${OMPI_COMM_WORLD_RANK} \
+            | tee ${LOG_DIR}/node_\${OMPI_COMM_WORLD_RANK}.log
+        "
+fi
+
+# Do not use mpirun. It degrades throughput in 26.xx versions of Nemo containers
+# mpirun -np $NUM_NODES --host $host_list bash ${CREATE_ENROOT_SCRIPT} "${SQSH_FILE}" "${CONTAINER_NAME}"
+#
+# export CREATE_ENROOT_SCRIPT="${BASE_FOLDER}/slime/custom_scripts/create_enroot.sh"
+# mpirun -np ${NUM_NODES} \
+#     -x JOB_ID -x JOB_WORK_DIR -x LOG_DIR -x BASE_FOLDER -x WANDB_API_KEY -x HF_HOME \
+#     --host $host_list \
+# enroot start --rw \
+#     -e JOB_ID -e JOB_WORK_DIR -e LOG_DIR -e BASE_FOLDER -e WANDB_API_KEY -e HF_HOME \
+#     -e OMPI_COMM_WORLD_RANK \
+#     --mount ${MOUNT_DIR} \
+#     ${CONTAINER_NAME} \
+#     bash -c "bash ${BASH_SCRIPT} \
+#         ${GPUS_PER_NODE} \
+#         ${WORLD_SIZE} \
+#         ${NUM_NODES} \
+#         ${MASTER_ADDR} \
+#         ${MASTER_PORT} | tee ${LOG_DIR}/node_\${OMPI_COMM_WORLD_RANK}.log"
+#
