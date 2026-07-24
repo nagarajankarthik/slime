@@ -1,0 +1,87 @@
+MODEL_ARGS=(
+    --use-mcore-models \
+  --transformer-impl transformer_engine \
+  --group-query-attention \
+  --squared-relu \
+  --bf16 \
+  --cuda-graph-impl none \
+  --max-position-embeddings 2048 \
+  --seed 1234 \
+  --micro-batch-size 1 \
+  --manual-gc-interval 0 \
+  --te-rng-tracker \
+  --cross-entropy-loss-fusion \
+  --cross-entropy-fusion-impl native \
+  --no-overlap-p2p-communication \
+  --num-layers 88 \
+  --mtp-num-layers 2 \
+  --mtp-loss-scaling-factor 0.3 \
+  --hidden-size 4096 \
+  --num-attention-heads 32 \
+  --attention-backend flash \
+  --num-query-groups 2 \
+  --ffn-hidden-size 2688 \
+  --kv-channels 128 \
+  --hidden-dropout 0.0 \
+  --attention-dropout 0.0 \
+  --norm-epsilon 1e-05 \
+  --disable-bias-linear \
+  --num-experts 512 \
+  --normalization RMSNorm \
+  --calculate-per-token-loss \
+  --init-method-std 0.014 \
+  --no-rope-fusion \
+  --moe-shared-expert-intermediate-size 5376 \
+  --moe-layer-freq 1 \
+  --moe-ffn-hidden-size 2688 \
+ --moe-router-load-balancing-type seq_aux_loss \
+  --moe-router-topk 22 \
+  --moe-router-num-groups 1 \
+  --moe-router-group-topk 1 \
+  --moe-router-topk-scaling-factor 5.0 \
+  --moe-router-score-function sigmoid \
+  --moe-router-dtype fp32 \
+  --moe-router-enable-expert-bias \
+  --moe-router-bias-update-rate 0.001 \
+  --moe-grouped-gemm \
+  --moe-aux-loss-coeff 0.0001 \
+  --moe-token-dispatcher-type alltoall \
+  --moe-permute-fusion \
+  --cuda-graph-warmup-steps 3 \
+  --untie-embeddings-and-output-weights \
+  --position-embedding-type none \
+  --rotary-percent 1.0 \
+  --rotary-base 10000 \
+  --make-vocab-size-divisible-by 128 \
+  --padded-vocab-size 131072 \
+  --lr 5e-06 \
+  --min-lr 0.0 \
+  --weight-decay 0.1 \
+  --adam-beta1 0.9 \
+  --adam-beta2 0.95 \
+  --adam-eps 1e-08 \
+  --clip-grad 1.0 \
+  --grad-reduce-in-fp32 \
+  --overlap-grad-reduce \
+  --overlap-param-gather \
+  --use-distributed-optimizer \
+  --lr-decay-style cosine \
+  --lr-wsd-decay-style minus_sqrt \
+  --lr-warmup-init 0.0 \
+  --override-opt-param-scheduler \
+  --dataloader-type cyclic \
+  --num-workers 1 \
+  --log-interval 1 \
+  --tensorboard-dir /mnt/weka/aisg/users/karthik/model_training_team/slime_test/Megatron-Bridge/nemo_experiments/default/tb_logs \
+  --log-timers-to-tensorboard \
+  --logging-level 20 \
+  --vocab-extra-ids 0 \
+  --tokenizer-type HuggingFaceTokenizer \
+  --tokenizer-model nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16 \
+  --tiktoken-num-special-tokens 1000 \
+  --ckpt-format torch_dist \
+  --async-save \
+  --use-persistent-ckpt-worker \
+  --dist-ckpt-strictness log_all \
+  --distributed-timeout-minutes 10 \
+)
